@@ -3,16 +3,33 @@ on:
   workflow_dispatch:
   pull_request:
 jobs:
+  toLowerCase:
+    runs-on: ubuntu-latest
+    outputs:
+      lower_repository: ${{ steps.toLowerCase.outputs.lower_repository }}
+    steps:
+      - name: Lowercase the repo name
+        id: toLowerCase
+        run: echo "lower_repository=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
   GameTest:
+    needs: toLowerCase
     strategy:
       matrix:
         GameTestConfig: [ default, testAE ]
     permissions:
       contents: write
-    runs-on: ubuntu-latest
+      packages: read
+    runs-on: ubuntu-22.04
+    container:
+      image: ghcr.io/${{ needs.toLowerCase.outputs.lower_repository }}:1.20.1-6.0.0-forge
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          path: /home/gradle
 
       - name: Setup JDK 21
         uses: actions/setup-java@v4
@@ -26,6 +43,7 @@ jobs:
           gradle-version: '8.11.1'
 
       - name: Test Server with ${{ matrix.GameTestConfig }}
+        working-directory: /home/gradle
         run: gradle runGameTestServer -PGameTestConfig=${{ matrix.GameTestConfig }} -Dforge.enabledGameTestNamespaces=smartercontraptionstorage
 
       - uses: actions/upload-artifact@v4
